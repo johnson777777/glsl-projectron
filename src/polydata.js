@@ -49,8 +49,16 @@ export function PolyData() {
     var rand = () => Math.random()
     var randRange = (a, b) => a + (b - a) * Math.random()
 
+    // Bias random values toward center for better 3D distribution
+    var randCenterBiased = () => {
+        var r1 = Math.random()
+        var r2 = Math.random()
+        // Average of two random values creates center bias
+        return (r1 + r2) / 2
+    }
+
     var randomizeVal = (old) => {
-        if (!old) return rand()
+        if (!old) return randCenterBiased()
         var a = Math.max(0, old - adjAmount)
         var b = Math.min(1, old + adjAmount)
         return randRange(a, b)
@@ -77,7 +85,9 @@ export function PolyData() {
     this.addPoly = function () {
         for (var i = 0; i < 3; i++) {
             for (var j = 0; j < 3; j++) {
-                vertArr.push(randomizeVal())
+                // Wider Z range (j===2) for thicker side view depth
+                var val = (j === 2) ? randRange(0.15, 0.85) : randomizeVal()
+                vertArr.push(val)
                 colArr.push(randomizeVal())
             }
             colArr.push(randomizeAlpha())

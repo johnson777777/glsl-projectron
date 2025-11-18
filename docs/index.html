@@ -115,7 +115,23 @@
         <label><input class='txt' id='polys'> Polygons</label>
         <label><input class='txt' id='gens'> Generations</label>
         <label><input class='txt' id='gps'> Gens/s</label>
-        <label><input class='txt' id='score'> Score</label>
+        <label><input class='txt' id='score'> Score (Front)</label>
+        <label><input class='txt' id='scoreSide'> Score (Side)</label>
+        <label><input class='txt' id='scoreCombined'> Score (Combined)</label>
+        <div class='sep'></div>
+
+        <label>
+            <strong>Dual-View Settings</strong>
+        </label>
+        <label>
+            <input type='file' id='sideImageInput' accept='image/*'> Load side image
+        </label>
+        <label>
+            Front Weight: <input class='txtin' id='frontWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
+        </label>
+        <label>
+            Side Weight: <input class='txtin' id='sideWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
+        </label>
         <div class='sep'></div>
 
         <label>
@@ -141,12 +157,17 @@
         <label>
             <input type='checkbox' id='showScr' />Scratch buffer
         </label>
+        <label>
+            <input type='checkbox' id='showSide' />Show side view
+        </label>
 
     </div>
 
     <br clear='left'>
     <p class='desc'>
-        To change the target image drag an image onto this page.
+        To change the front target image drag an image onto this page.
+        <br>
+        For dual-view mode, use the "Load side image" button to add a second target.
     </p>
 
     <p class='desc'>

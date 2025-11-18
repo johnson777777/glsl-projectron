@@ -54,3 +54,4 @@ proj.draw(x,y)          // once per frame..
 Made with 🍺 by [Andy Hall](https://twitter.com/fenomas). MIT license.
 
 
+cd e:\glsl-projectron\demo; ..\node_modules\.bin\webpack-dev-server

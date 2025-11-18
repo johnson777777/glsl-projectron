@@ -14,8 +14,8 @@ void main() {
 	vec4 pos = 2.0 * position - 1.0;
 	
 	// squash z and move back a bit so overall shape is visible
-	// when rotated
-	pos.z = pos.z * 0.75 + 0.25;
+	// when rotated - adjusted for thicker side view
+	pos.z = pos.z * 1.2;
 	
 	// rotate by camera transform
 	pos = camera * pos;

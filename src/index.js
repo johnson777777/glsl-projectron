@@ -47,6 +47,15 @@ export function Projectron(canvas, size) {
 	var tgtTexture = null
 	var currentScore = -100
 
+	// dual-view settings
+	var tgtTextureSide = null
+	var currentScoreSide = -100
+	var currentScoreCombined = -100
+	var sideViewRotation = Math.PI / 2
+	var scoreWeightFront = 0.5
+	var sideViewXScale = 2.0  // Scale X-axis for better side view depth
+	var scoreWeightSide = 0.5
+
 
 
 
@@ -57,15 +66,26 @@ export function Projectron(canvas, size) {
 	*/
 
 	this.setTargetImage = setTargetImage
+	this.setTargetImageSide = setTargetImageSide
 	this.setAlphaRange = (a, b) => polys.setAlphaRange(+a, +b)
 	this.setAdjustAmount = (n) => polys.setAdjust(+n)
 	this.setFewerPolyTolerance = (n) => { fewerPolysTolerance = n || 0 }
+	this.setViewWeights = (frontWeight, sideWeight) => {
+		scoreWeightFront = frontWeight
+		scoreWeightSide = sideWeight
+	}
 
 	this.getScore = () => currentScore
+	this.getScoreFront = () => currentScore
+	this.getScoreSide = () => currentScoreSide
+	this.getScoreCombined = () => currentScoreCombined
 	this.getNumPolys = () => polys.getNumPolys()
 	this.draw = (x, y) => { paint(x, y) }
+	this.drawSideView = (x, y) => { paintSideView(x, y) }
 	this.drawTargetImage = () => { paintReference() }
+	this.drawSideReference = () => { paintSideReference() }
 	this._drawScratchImage = () => { paintScratchBuffer() }
+	this._drawSideScratchImage = () => { paintSideScratchBuffer() }
 
 	this.version = require('../package.json').version
 
@@ -105,6 +125,10 @@ export function Projectron(canvas, size) {
 	var referenceFB = createFBO(gl, [fboSize, fboSize], { color: 1 })
 	referenceFB.drawn = false
 	var scratchFB = createFBO(gl, [fboSize, fboSize], { color: 1 })
+	// side view framebuffers
+	var referenceFBSide = createFBO(gl, [fboSize, fboSize], { color: 1 })
+	referenceFBSide.drawn = false
+	var scratchFBSide = createFBO(gl, [fboSize, fboSize], { color: 1 })
 	var reducedFBs = []
 	var reducedSize = fboSize / 4
 	while (reducedSize >= 16) {
@@ -164,17 +188,34 @@ export function Projectron(canvas, size) {
 		colBuffer.update(polys.getColorArray())
 		polyBuffersOutdated = false
 
+		// FRONT VIEW RENDERING
 		drawData(scratchFB, perspective, null)
-		var score = compareFBOs(referenceFB, scratchFB)
-		var keep = (score > currentScore)
+		var scoreFront = compareFBOs(referenceFB, scratchFB)
+
+		// SIDE VIEW RENDERING (if second target exists)
+		var scoreSide = 0
+		var scoreCombined = scoreFront
+		if (tgtTextureSide) {
+			var sideMatrix = mat4.create()
+			// Apply same X-axis scaling as in paintSideView
+			mat4.scale(sideMatrix, sideMatrix, [sideViewXScale, 1.0, 1.0])
+			mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
+			drawData(scratchFBSide, perspective, sideMatrix)
+			scoreSide = compareFBOs(referenceFBSide, scratchFBSide)
+			scoreCombined = (scoreFront * scoreWeightFront) + (scoreSide * scoreWeightSide)
+		}
+
+		var keep = (scoreCombined > currentScoreCombined)
 
 		// prefer to remove polys even if score drop is within tolerance
 		if (!keep && polys.getNumVerts() < vertCount) {
-			if (score > currentScore - fewerPolysTolerance) keep = true
+			if (scoreCombined > currentScoreCombined - fewerPolysTolerance) keep = true
 		}
 
 		if (keep) {
-			currentScore = score
+			currentScore = scoreFront
+			currentScoreSide = scoreSide
+			currentScoreCombined = scoreCombined
 		} else {
 			polys.restoreCachedData()
 			polyBuffersOutdated = true
@@ -221,8 +262,39 @@ export function Projectron(canvas, size) {
 		tgtTexture = createTexture(gl, image)
 		drawFlat(tgtTexture, referenceFB, true)
 		// run a comparison so as to have a correct score
-		drawData(scratchFB, perspective, null)
-		currentScore = compareFBOs(referenceFB, scratchFB)
+		if (tgtTextureSide) {
+			// dual-view mode
+			drawData(scratchFB, perspective, null)
+			currentScore = compareFBOs(referenceFB, scratchFB)
+			var sideMatrix = mat4.create()
+			mat4.scale(sideMatrix, sideMatrix, [sideViewXScale, 1.0, 1.0])
+			mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
+			drawData(scratchFBSide, perspective, sideMatrix)
+			currentScoreSide = compareFBOs(referenceFBSide, scratchFBSide)
+			currentScoreCombined = (currentScore * scoreWeightFront) + (currentScoreSide * scoreWeightSide)
+		} else {
+			// single-view mode
+			drawData(scratchFB, perspective, null)
+			currentScore = compareFBOs(referenceFB, scratchFB)
+			currentScoreCombined = currentScore
+		}
+	}
+
+	function setTargetImageSide(image) {
+		prerender()
+		tgtTextureSide = createTexture(gl, image)
+		drawFlat(tgtTextureSide, referenceFBSide, true)
+		// recalculate initial combined score
+		if (tgtTexture) {
+			drawData(scratchFB, perspective, null)
+			currentScore = compareFBOs(referenceFB, scratchFB)
+			var sideMatrix = mat4.create()
+			mat4.scale(sideMatrix, sideMatrix, [sideViewXScale, 1.0, 1.0])
+			mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
+			drawData(scratchFBSide, perspective, sideMatrix)
+			currentScoreSide = compareFBOs(referenceFBSide, scratchFBSide)
+			currentScoreCombined = (currentScore * scoreWeightFront) + (currentScoreSide * scoreWeightSide)
+		}
 	}
 
 
@@ -259,6 +331,30 @@ export function Projectron(canvas, size) {
 	function paintScratchBuffer() {
 		if (!tgtTexture) return
 		drawFlat(scratchFB.color[0], null, false)
+	}
+
+	function paintSideView(xRot, yRot) {
+		if (polyBuffersOutdated) {
+			vertBuffer.update(polys.getVertArray())
+			colBuffer.update(polys.getColorArray())
+		}
+		// create side view matrix (90° + optional user rotation)
+		camMatrix = mat4.create()
+		// Apply X-axis scaling to widen the side view
+		mat4.scale(camMatrix, camMatrix, [sideViewXScale, 1.0, 1.0])
+		mat4.rotateY(camMatrix, camMatrix, sideViewRotation + (xRot || 0))
+		mat4.rotateX(camMatrix, camMatrix, yRot || 0)
+		drawData(null, perspective, camMatrix)
+	}
+
+	function paintSideReference() {
+		if (!tgtTextureSide) return
+		drawFlat(referenceFBSide.color[0], null, false)
+	}
+
+	function paintSideScratchBuffer() {
+		if (!tgtTextureSide) return
+		drawFlat(scratchFBSide.color[0], null, false)
 	}
 
 
@@ -413,35 +509,58 @@ export function Projectron(canvas, size) {
 
 
 	// ad-hoc data format:
-	// vert-xyz,p1,p2,..pn,col-rgba,c1,c2,..cn
+	// vert-xyz,p1,p2,..pn,col-rgba,c1,c2,..cn,weights,w1,w2
 	this.exportData = function () {
 		var s = 'vert-xyz,'
 		s += polys.getVertArray().map(n => n.toFixed(8)).join()
 		s += ',\ncol-rgba,'
 		s += polys.getColorArray().map(n => n.toFixed(5)).join()
+		s += ',\nweights,'
+		s += scoreWeightFront.toFixed(3) + ',' + scoreWeightSide.toFixed(3)
 		return s
 	}
 
 	this.importData = function (s) {
 		var curr, v = [], c = []
+		var weights = null
 		var arr = s.split(',')
 		if (s.length < 5) return
-		arr.forEach(function (s) {
-			var n = parseFloat(s)
-			if (s.indexOf('vert-xyz') > -1) { curr = v }
-			else if (s.indexOf('col-rgba') > -1) { curr = c }
+		arr.forEach(function (str) {
+			var n = parseFloat(str)
+			if (str.indexOf('vert-xyz') > -1) { curr = v }
+			else if (str.indexOf('col-rgba') > -1) { curr = c }
+			else if (str.indexOf('weights') > -1) {
+				curr = null
+				weights = []
+			}
+			else if (weights !== null && !isNaN(n)) { weights.push(n) }
 			else if (curr && !isNaN(n)) { curr.push(n) }
-			else { console.warn('Import: ignoring value ' + s) }
+			else { console.warn('Import: ignoring value ' + str) }
 		})
 		// this is all pretty ad-hoc but it will work well enough for a demo
+		if (weights && weights.length === 2) {
+			scoreWeightFront = weights[0]
+			scoreWeightSide = weights[1]
+		}
 		if (v.length / 3 === c.length / 4) {
 			polys.setArrays(v, c)
 			vertBuffer.update(polys.getVertArray())
 			colBuffer.update(polys.getColorArray())
-			if (tgtTexture) {
-				// run a comparison so as to have a correct score
+			if (tgtTexture && tgtTextureSide) {
+				// dual-view mode: recalculate both scores
 				drawData(scratchFB, perspective, null)
 				currentScore = compareFBOs(referenceFB, scratchFB)
+				var sideMatrix = mat4.create()
+				mat4.scale(sideMatrix, sideMatrix, [sideViewXScale, 1.0, 1.0])
+				mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
+				drawData(scratchFBSide, perspective, sideMatrix)
+				currentScoreSide = compareFBOs(referenceFBSide, scratchFBSide)
+				currentScoreCombined = (currentScore * scoreWeightFront) + (currentScoreSide * scoreWeightSide)
+			} else if (tgtTexture) {
+				// single-view mode
+				drawData(scratchFB, perspective, null)
+				currentScore = compareFBOs(referenceFB, scratchFB)
+				currentScoreCombined = currentScore
 			}
 			return true
 		} else {
