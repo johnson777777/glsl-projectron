@@ -252,6 +252,11 @@ document.onkeydown = ev => {
         ev.preventDefault()
         paused = !paused
         $('paused').checked = paused
+        // Update play/pause button
+        const playPauseBtn = $('playPauseBtn')
+        if (playPauseBtn) {
+            playPauseBtn.innerHTML = paused ? '▶️ Start Generation' : '⏸️ Pause Generation'
+        }
     }
 }
 
@@ -436,6 +441,17 @@ window.addEventListener('load', function () {
         ev.preventDefault()
     }
     
+    // Image gallery handler for front image
+    var frontGallery = $('frontImageGallery')
+    if (frontGallery) {
+        frontGallery.addEventListener('imageSelected', ev => {
+            var imagePath = './' + ev.detail.value
+            var img = new Image()
+            img.onload = () => { setImage(img) }
+            img.src = imagePath
+        })
+    }
+    
     // File input handler for front image (if exists)
     var frontImageInput = $('frontImageInput')
     if (frontImageInput) {
@@ -448,6 +464,17 @@ window.addEventListener('load', function () {
                 reader.onloadend = e => { img.src = e.target.result }
                 reader.readAsDataURL(file)
             }
+        })
+    }
+    
+    // Image gallery handler for side image
+    var sideGallery = $('sideImageGallery')
+    if (sideGallery) {
+        sideGallery.addEventListener('imageSelected', ev => {
+            var imagePath = './' + ev.detail.value
+            var img = new Image()
+            img.onload = () => { setImageSide(img) }
+            img.src = imagePath
         })
     }
     

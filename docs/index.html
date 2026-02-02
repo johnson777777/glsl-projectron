@@ -316,6 +316,55 @@
             gap: 0.5rem;
         }
 
+        .image-preview-gallery {
+            display: flex;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+            flex-wrap: wrap;
+        }
+
+        .image-preview-item {
+            width: 60px;
+            height: 60px;
+            border: 3px solid #e9ecef;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            overflow: hidden;
+            position: relative;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-preview-item:hover {
+            border-color: #6c63ff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(108, 99, 255, 0.2);
+        }
+
+        .image-preview-item.selected {
+            border-color: #6c63ff;
+            box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.2);
+        }
+
+        .image-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .image-preview-item.upload-icon {
+            font-size: 28px;
+            color: #6c63ff;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+
+        .image-preview-item.upload-icon:hover {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+        }
+
         @media (max-width: 1200px) {
             .sidebar {
                 width: 320px;
@@ -370,14 +419,26 @@
 
                 <div class='control-section'>
                     <div class='control-section-header' onclick='toggleSection(this)'>
-                        <strong>⏸ Paused</strong>
+                        <strong>⏯️ Generation Control</strong>
                         <span class='control-section-toggle'>▼</span>
                     </div>
                     <div class='control-section-content'>
-                        <label>
-                            <input type='checkbox' id='paused' checked />
-                            Pause generation
-                        </label>
+                        <button id='playPauseBtn' onclick='togglePlayPause()' style='font-size: 16px;'>
+                            ▶️ Start Generation
+                        </button>
+                        <input type='checkbox' id='paused' checked style='display: none;' />
+                        
+                        <hr style='margin: 1rem 0; border: none; border-top: 1px solid #e0e0e0;'>
+                        
+                        <strong style='display: block; margin-bottom: 0.5rem; font-size: 14px;'>📊 Statistics</strong>
+                        <div class='stats-grid'>
+                            <label><input class='txt' id='polys'> Polygons</label>
+                            <label><input class='txt' id='gens'> Generations</label>
+                            <label><input class='txt' id='gps'> Gens/s</label>
+                            <label><input class='txt' id='score'> Score (Front)</label>
+                            <label><input class='txt' id='scoreSide'> Score (Side)</label>
+                            <label><input class='txt' id='scoreCombined'> Score (Comb.)</label>
+                        </div>
                     </div>
                 </div>
 
@@ -387,7 +448,7 @@
                         <span class='control-section-toggle'>▼</span>
                     </div>
                     <div class='control-section-content'>
-                        <label><select id='gensPerFrame'>
+                        <label style='font-size: 14px;'><select id='gensPerFrame' style='font-size: 14px;'>
                 <option>1</option>
                 <option>10</option>
                 <option selected='true'>20</option>
@@ -395,55 +456,76 @@
                 <option>100</option>
             </select> generations per frame
         </label>
-        <label><input class='txt' id='preferFewer' value='0.001'> Fewer polys tolerance</label>
+        <label style='font-size: 14px;'><input class='txt' id='preferFewer' value='0.001' style='font-size: 14px;'> Fewer polys tolerance</label>
         <span class='info-label'>
             Score tolerance within which to drop polygons
         </span>
 
         <hr style='margin: 1rem 0; border: none; border-top: 1px solid #e0e0e0;'>
 
-        <strong style='display: block; margin-bottom: 0.5rem;'>👁️ Dual-View Settings</strong>
-        <label>
-            <input type='file' id='frontImageInput' accept='image/*'> Load front image
+        <strong style='display: block; margin-bottom: 0.5rem; font-size: 14px;'>👁️ Dual-View Settings</strong>
+        <label style='font-size: 14px;'>
+            Front Image:
+            <div class='image-preview-gallery' id='frontImageGallery'>
+                <div class='image-preview-item' data-value='img/mona512.jpg' title='Mona Lisa'>
+                    <img src='img/mona512.jpg' alt='Mona Lisa'>
+                </div>
+                <div class='image-preview-item' data-value='img/monaside.png' title='Mona Side'>
+                    <img src='img/monaside.png' alt='Mona Side'>
+                </div>
+                <div class='image-preview-item' data-value='img/teapot512.png' title='Teapot'>
+                    <img src='img/teapot512.png' alt='Teapot'>
+                </div>
+                <div class='image-preview-item' data-value='img/lena.png' title='Lena'>
+                    <img src='img/lena.png' alt='Lena'>
+                </div>
+                <div class='image-preview-item upload-icon' data-value='custom' title='Upload Custom'>
+                    📤
+                </div>
+            </div>
         </label>
-        <label>
-            <input type='file' id='sideImageInput' accept='image/*'> Load side image
+        <input type='file' id='frontImageInput' accept='image/*' style='display: none;'>
+        <label style='font-size: 14px;'>
+            Side Image:
+            <div class='image-preview-gallery' id='sideImageGallery'>
+                <div class='image-preview-item' data-value='img/mona512.jpg' title='Mona Lisa'>
+                    <img src='img/mona512.jpg' alt='Mona Lisa'>
+                </div>
+                <div class='image-preview-item' data-value='img/monaside.png' title='Mona Side'>
+                    <img src='img/monaside.png' alt='Mona Side'>
+                </div>
+                <div class='image-preview-item' data-value='img/teapot512.png' title='Teapot'>
+                    <img src='img/teapot512.png' alt='Teapot'>
+                </div>
+                <div class='image-preview-item' data-value='img/lena.png' title='Lena'>
+                    <img src='img/lena.png' alt='Lena'>
+                </div>
+                <div class='image-preview-item upload-icon' data-value='custom' title='Upload Custom'>
+                    📤
+                </div>
+            </div>
         </label>
-        <label>
-            Front Weight: <input class='txtin' id='frontWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
+        <input type='file' id='sideImageInput' accept='image/*' style='display: none;'>
+        <label style='font-size: 14px;'>
+            View Balance: <span id='weightDisplay'>50/50</span><br>
+            <span style='font-size: 12px; color: #6c757d;'>Front</span>
+            <input type='range' id='viewBalance' min='0' max='100' value='50' style='width: 100%; margin: 0.5rem 0;'>
+            <span style='font-size: 12px; color: #6c757d; float: right;'>Side</span>
         </label>
-        <label>
-            Side Weight: <input class='txtin' id='sideWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
-        </label>
+        <input class='txtin' id='frontWeight' type='number' min='0' max='1' step='0.1' value='0.5' style='display: none;'>
+        <input class='txtin' id='sideWeight' type='number' min='0' max='1' step='0.1' value='0.5' style='display: none;'>
 
         <hr style='margin: 1rem 0; border: none; border-top: 1px solid #e0e0e0;'>
 
-        <strong style='display: block; margin-bottom: 0.5rem;'>🎨 Appearance</strong>
-        <label>
+        <strong style='display: block; margin-bottom: 0.5rem; font-size: 14px;'>🎨 Appearance</strong>
+        <label style='font-size: 14px;'>
             Alpha range:
-            <input class='txtin' id='minAlpha' value='0.1'> to
-            <input class='txtin' id='maxAlpha' value='0.5'>
+            <input class='txtin' id='minAlpha' value='0.1' style='font-size: 14px;'> to
+            <input class='txtin' id='maxAlpha' value='0.5' style='font-size: 14px;'>
         </label>
-        <label>
-            Adjust amt: <input class='txtin' id='adjust' value='0.5'>
+        <label style='font-size: 14px;'>
+            Adjust amt: <input class='txtin' id='adjust' value='0.5' style='font-size: 14px;'>
         </label>
-                    </div>
-                </div>
-
-        <div class='control-section'>
-            <div class='control-section-header' onclick='toggleSection(this)'>
-                <strong>📊 Statistics</strong>
-                <span class='control-section-toggle'>▼</span>
-            </div>
-            <div class='control-section-content'>
-                <div class='stats-grid'>
-                    <label><input class='txt' id='polys'> Polygons</label>
-                    <label><input class='txt' id='gens'> Generations</label>
-                    <label><input class='txt' id='gps'> Gens/s</label>
-                    <label><input class='txt' id='score'> Score (Front)</label>
-                    <label><input class='txt' id='scoreSide'> Score (Side)</label>
-                    <label><input class='txt' id='scoreCombined'> Score (Comb.)</label>
-                </div>
                     </div>
                 </div>
 
@@ -497,9 +579,80 @@
             section.classList.toggle('collapsed');
         }
 
+        function togglePlayPause() {
+            const pausedCheckbox = document.getElementById('paused');
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            pausedCheckbox.checked = !pausedCheckbox.checked;
+            
+            // Trigger the change event
+            const event = new Event('change');
+            pausedCheckbox.dispatchEvent(event);
+            
+            // Update button text and icon
+            if (pausedCheckbox.checked) {
+                playPauseBtn.innerHTML = '▶️ Start Generation';
+            } else {
+                playPauseBtn.innerHTML = '⏸️ Pause Generation';
+            }
+        }
+
         // Prevent control sections from being collapsed by default
         document.addEventListener('DOMContentLoaded', function() {
             // All sections are expanded by default
+            
+            // Setup view balance slider
+            const balanceSlider = document.getElementById('viewBalance');
+            const weightDisplay = document.getElementById('weightDisplay');
+            const frontWeight = document.getElementById('frontWeight');
+            const sideWeight = document.getElementById('sideWeight');
+            
+            if (balanceSlider) {
+                balanceSlider.addEventListener('input', function() {
+                    const value = parseInt(this.value);
+                    const front = value / 100;
+                    const side = 1 - front;
+                    frontWeight.value = front.toFixed(1);
+                    sideWeight.value = side.toFixed(1);
+                    weightDisplay.textContent = value + '/' + (100 - value);
+                    
+                    // Trigger change events
+                    frontWeight.dispatchEvent(new Event('change'));
+                    sideWeight.dispatchEvent(new Event('change'));
+                });
+            }
+            
+            // Setup image gallery selectors
+            const frontGallery = document.getElementById('frontImageGallery');
+            const sideGallery = document.getElementById('sideImageGallery');
+            const frontInput = document.getElementById('frontImageInput');
+            const sideInput = document.getElementById('sideImageInput');
+            
+            function setupImageGallery(gallery, fileInput) {
+                if (!gallery) return;
+                
+                const items = gallery.querySelectorAll('.image-preview-item');
+                items.forEach(item => {
+                    item.addEventListener('click', function() {
+                        // Remove selected class from all items
+                        items.forEach(i => i.classList.remove('selected'));
+                        // Add selected class to clicked item
+                        this.classList.add('selected');
+                        
+                        const value = this.getAttribute('data-value');
+                        if (value === 'custom' && fileInput) {
+                            fileInput.click();
+                        } else {
+                            // Handle default image selection
+                            // Trigger custom event or callback here
+                            const event = new CustomEvent('imageSelected', { detail: { value: value } });
+                            gallery.dispatchEvent(event);
+                        }
+                    });
+                });
+            }
+            
+            setupImageGallery(frontGallery, frontInput);
+            setupImageGallery(sideGallery, sideInput);
         });
     </script>
 
