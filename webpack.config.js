@@ -2,7 +2,7 @@
 
 var path = require('path')
 
-var buildPath = path.resolve('..', 'docs')
+var buildPath = path.resolve('docs')
 
 
 module.exports = (env) => ({

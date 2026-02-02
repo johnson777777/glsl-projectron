@@ -1,5 +1,5 @@
 
-import { Projectron } from '../src'
+import { Projectron } from './projectron'
 
 
 
@@ -66,8 +66,8 @@ var dragging = false
 var lastLoc = [0, 0]
 
 // Snapping settings
-var snapThreshold = 0.15  // How close to snap point before snapping (in radians, ~8.6 degrees)
-var snapStrength = 0.3    // How strongly to pull toward snap point (0-1)
+var snapThreshold = 0.2  // How close to snap point before snapping (in radians, ~11.5 degrees)
+var snapStrength = 0.5    // How strongly to pull toward snap point (0-1)
 var snapPoints = {
     horizontal: [0, Math.PI / 2, Math.PI, -Math.PI / 2],  // Front, Right, Back, Left
     vertical: [0]  // Level (could add Math.PI/2, -Math.PI/2 for top/bottom)
@@ -133,14 +133,19 @@ function normalizeAngle(angle) {
 
 // Apply snapping to camera rotation
 function applySnapping() {
-    var snapped = false
+    var snappedH = false
+    var snappedV = false
     
     // Check horizontal rotation (around Y axis)
     var hSnap = findNearestSnap(cameraRot[0], snapPoints.horizontal)
     if (hSnap.distance < snapThreshold) {
         var diff = normalizeAngle(hSnap.point - cameraRot[0])
         cameraRot[0] += diff * snapStrength
-        snapped = true
+        snappedH = true
+        // If very close, snap exactly
+        if (Math.abs(diff) < 0.01) {
+            cameraRot[0] = hSnap.point
+        }
     }
     
     // Check vertical rotation (around X axis)
@@ -148,10 +153,14 @@ function applySnapping() {
     if (vSnap.distance < snapThreshold) {
         var diff = normalizeAngle(vSnap.point - cameraRot[1])
         cameraRot[1] += diff * snapStrength
-        snapped = true
+        snappedV = true
+        // If very close, snap exactly
+        if (Math.abs(diff) < 0.01) {
+            cameraRot[1] = vSnap.point
+        }
     }
     
-    return snapped
+    return { h: snappedH, v: snappedV }
 }
 
 // update/debounce
@@ -159,18 +168,22 @@ function returnCamera() {
     if (dragging) return
     
     // Apply snapping effect first
-    var isSnapping = applySnapping()
+    var snapping = applySnapping()
     
-    // Apply damping to move toward rest
-    cameraRot.forEach((rot, i) => {
-        rot *= cameraReturn
-        cameraRot[i] = (Math.abs(rot) < 1e-4) ? 0 : rot
-    })
+    // Apply damping to move toward rest, but not to snapped axes
+    if (!snapping.h) {
+        cameraRot[0] *= cameraReturn
+        if (Math.abs(cameraRot[0]) < 1e-4) cameraRot[0] = 0
+    }
+    if (!snapping.v) {
+        cameraRot[1] *= cameraReturn
+        if (Math.abs(cameraRot[1]) < 1e-4) cameraRot[1] = 0
+    }
     
     drawNeeded = true
     
     // Continue animation if still moving or snapping
-    if (cameraRot[0] || cameraRot[1] || isSnapping) {
+    if (cameraRot[0] || cameraRot[1] || snapping.h || snapping.v) {
         requestAnimationFrame(returnCamera)
     }
 }

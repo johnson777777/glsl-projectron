@@ -100,7 +100,7 @@ export function Projectron(canvas, size) {
 	this._drawScratchImage = () => { paintScratchBuffer() }
 	this._drawSideScratchImage = () => { paintSideScratchBuffer() }
 
-	this.version = require('../package.json').version
+	this.version = require('./package.json').version
 
 
 
