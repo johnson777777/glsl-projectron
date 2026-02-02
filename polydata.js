@@ -82,21 +82,80 @@ export function PolyData() {
      * 
     */
 
-    this.addPoly = function () {
-        for (var i = 0; i < 3; i++) {
-            for (var j = 0; j < 3; j++) {
-                // Wider Z range (j===2) for thicker side view depth
-                var val = (j === 2) ? randRange(0.15, 0.85) : randomizeVal()
-                vertArr.push(val)
-                colArr.push(randomizeVal())
+    this.addPoly = function (primitiveType) {
+        // primitiveType: 'triangle' (default), 'quad', 'thin'
+        primitiveType = primitiveType || 'triangle'
+        
+        if (primitiveType === 'thin') {
+            // Thin elongated triangles - better for edges/lines
+            var x = randomizeVal()
+            var y = randomizeVal()
+            var z = randRange(0.15, 0.85)
+            var angle = rand() * Math.PI * 2
+            var length = randRange(0.05, 0.2)
+            var width = randRange(0.002, 0.01)
+            
+            var dx = Math.cos(angle) * length
+            var dy = Math.sin(angle) * length
+            var nx = -Math.sin(angle) * width
+            var ny = Math.cos(angle) * width
+            
+            // Create thin triangle
+            vertArr.push(x - dx, y - dy, z)
+            vertArr.push(x + dx, y + dy, z)
+            vertArr.push(x + dx + nx, y + dy + ny, z)
+            
+            // Same color for all vertices
+            var r = randomizeVal(), g = randomizeVal(), b = randomizeVal(), a = randomizeAlpha()
+            for (var i = 0; i < 3; i++) {
+                colArr.push(r, g, b, a)
             }
-            colArr.push(randomizeAlpha())
-        }
-        if (flattenZ > 0) {
-            var len = vertArr.length
-            var z1 = vertArr[len - 1]
-            vertArr[len - 4] += flattenZ * (z1 - vertArr[len - 4])
-            vertArr[len - 7] += flattenZ * (z1 - vertArr[len - 7])
+        } else if (primitiveType === 'quad') {
+            // Quad approximated by 2 triangles (6 vertices)
+            var cx = randomizeVal()
+            var cy = randomizeVal()
+            var cz = randRange(0.15, 0.85)
+            var size = randRange(0.05, 0.15)
+            var angle = rand() * Math.PI * 2
+            
+            var cos = Math.cos(angle)
+            var sin = Math.sin(angle)
+            
+            // 4 corners of quad
+            var corners = [
+                [cx - size * cos, cy - size * sin, cz],
+                [cx + size * sin, cy - size * cos, cz],
+                [cx + size * cos, cy + size * sin, cz],
+                [cx - size * sin, cy + size * cos, cz]
+            ]
+            
+            // Triangle 1: corners 0,1,2
+            for (var j = 0; j < 3; j++) {
+                vertArr.push(corners[j][0], corners[j][1], corners[j][2])
+            }
+            
+            // Same color for triangle 1
+            var r1 = randomizeVal(), g1 = randomizeVal(), b1 = randomizeVal(), a1 = randomizeAlpha()
+            for (var k = 0; k < 3; k++) {
+                colArr.push(r1, g1, b1, a1)
+            }
+        } else {
+            // Default: standard triangle
+            for (var i = 0; i < 3; i++) {
+                for (var j = 0; j < 3; j++) {
+                    // Wider Z range (j===2) for thicker side view depth
+                    var val = (j === 2) ? randRange(0.15, 0.85) : randomizeVal()
+                    vertArr.push(val)
+                    colArr.push(randomizeVal())
+                }
+                colArr.push(randomizeAlpha())
+            }
+            if (flattenZ > 0) {
+                var len = vertArr.length
+                var z1 = vertArr[len - 1]
+                vertArr[len - 4] += flattenZ * (z1 - vertArr[len - 4])
+                vertArr[len - 7] += flattenZ * (z1 - vertArr[len - 7])
+            }
         }
     }
 
@@ -117,6 +176,41 @@ export function PolyData() {
         } else {
             var vi = (rand() * vertArr.length) | 0
             vertArr[vi] = randomizeVal(vertArr[vi])
+        }
+    }
+
+    // Fine-tune mutation for high-score optimization
+    this.mutateValueFine = function () {
+        var savedAdjust = adjAmount
+        adjAmount = Math.min(0.1, adjAmount * 0.2)  // 20% of normal adjustment
+        if (rand() < 0.5) {
+            var ci = (rand() * colArr.length) | 0
+            var randomizer = (ci % 4 === 3) ? randomizeAlpha : randomizeVal
+            colArr[ci] = randomizer(colArr[ci])
+        } else {
+            var vi = (rand() * vertArr.length) | 0
+            vertArr[vi] = randomizeVal(vertArr[vi])
+        }
+        adjAmount = savedAdjust
+    }
+
+    // Mutate entire polygon (position + color together)
+    this.mutatePolygon = function () {
+        var polyIndex = (rand() * this.getNumPolys()) | 0
+        var vi = polyIndex * 9
+        var ci = polyIndex * 12
+        
+        // Mutate all 3 vertices
+        for (var i = 0; i < 9; i++) {
+            vertArr[vi + i] = randomizeVal(vertArr[vi + i])
+        }
+        // Mutate all 3 vertex colors
+        for (var j = 0; j < 12; j++) {
+            if (j % 4 === 3) {
+                colArr[ci + j] = randomizeAlpha(colArr[ci + j])
+            } else {
+                colArr[ci + j] = randomizeVal(colArr[ci + j])
+            }
         }
     }
 

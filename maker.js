@@ -101,7 +101,6 @@ console.log('GLSL-Projectron  ver ' + proj.version)
 
 var paused = true
 var showReference = false
-var showScratch = false
 var showSideView = false
 
 var cameraRot = [0, 0]
@@ -130,22 +129,19 @@ function render() {
         lastHtmlUpdate = now
     }
     if (now - lastDraw > 500 || (paused && drawNeeded)) {
-        var mode = (showReference) ? 1 : (showScratch) ? 2 : 0
         if (showSideView && dualViewEnabled) {
             // render side view
             if (showReference) {
                 proj.drawSideReference()
-            } else if (showScratch) {
-                proj._drawSideScratchImage()
             } else {
                 proj.drawSideView(-cameraRot[0], -cameraRot[1])
             }
         } else {
             // render front view
-            switch (mode) {
-                case 0: proj.draw(-cameraRot[0], -cameraRot[1]); break
-                case 1: proj.drawTargetImage(); break
-                case 2: proj._drawScratchImage(); break
+            if (showReference) {
+                proj.drawTargetImage()
+            } else {
+                proj.draw(-cameraRot[0], -cameraRot[1])
             }
         }
         drawNeeded = false
@@ -183,8 +179,7 @@ var setupInput = (el, handler) => {
 
 setupInput('paused', val => { paused = val })
 setupInput('showRef', val => { showReference = val; drawNeeded = true })
-setupInput('showScr', val => { showScratch = val; drawNeeded = true })
-setupInput('showSide', val => { showSideView = val; drawNeeded = true })
+// setupInput('showSide', val => { showSideView = val; drawNeeded = true })
 setupInput('gensPerFrame', val => { gensPerFrame = parseInt(val) })
 
 var minAlpha = 0.1

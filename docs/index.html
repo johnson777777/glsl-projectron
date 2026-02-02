@@ -3,101 +3,391 @@
 
 <head>
     <meta charset="utf-8">
-    <title>GLSL Projectron creator demo</title>
-    <meta name="description" content="viewer">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GLSL Projectron Creator</title>
+    <meta name="description" content="Interactive 3D polygon projection tool">
     <style type="text/css">
-        html,
-        body {
-            margin: 0.5rem;
-            height: 100%;
-            font: 300 15px Meiryo, Helvetica, sans-serif;
+        * {
+            box-sizing: border-box;
         }
 
-        select,
-        input,
-        button {
-            font: inherit;
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-size: 15px;
+            line-height: 1.6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            width: 380px;
+            background: white;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+            transform: translateX(0);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-380px);
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            left: 380px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: white;
+            border: none;
+            width: 40px;
+            height: 80px;
+            border-radius: 0 12px 12px 0;
+            box-shadow: 4px 0 12px rgba(0,0,0,0.15);
+            cursor: pointer;
+            z-index: 999;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #6c63ff;
+        }
+
+        .sidebar.collapsed + .sidebar-toggle {
+            left: 0;
+        }
+
+        .sidebar-toggle:hover {
+            background: #f8f9fa;
+            width: 45px;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            margin-left: 380px;
+            transition: margin-left 0.3s ease;
+        }
+
+        .sidebar.collapsed ~ .main-content {
+            margin-left: 0;
         }
 
         .container {
-            margin: 0.5rem;
-            float: left;
-            width: 500px;
-            height: 500px;
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+
+        .canvas-container {
+            text-align: center;
+        }
+
+        #view {
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: block;
+            max-width: 100%;
+            height: auto;
         }
 
         .UI {
-            float: left;
-            margin: 1rem;
+            padding: 1.5rem;
+            height: 100%;
+        }
+
+        .sidebar-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            margin: -1.5rem -1.5rem 1rem;
+            border-radius: 0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .sidebar-header h2 {
+            margin: 0;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .control-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .control-section:hover {
+            background: #e9ecef;
+        }
+
+        .control-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-section.collapsed .control-section-content {
+            display: none;
+        }
+
+        .control-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-section-toggle {
+            font-size: 1.2rem;
+            color: #6c757d;
+            transition: transform 0.2s;
+        }
+
+        .control-section.collapsed .control-section-toggle {
+            transform: rotate(-90deg);
+        }
+
+        .control-section-content {
+            margin-top: 0.75rem;
         }
 
         label {
             user-select: none;
             display: block;
-            margin: 0.25rem;
+            margin: 0.5rem 0;
+            font-size: 14px;
+            color: #495057;
         }
 
         label>* {
             vertical-align: middle;
         }
 
-        button {
-            margin: 0.25rem;
-        }
-
-        .sep {
-            height: 1rem;
-        }
-
-        .view {
-            width: 500px;
-            height: 500px;
-        }
-
         strong {
-            font-weight: 500;
-            font-size: 135%;
+            display: block;
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #6c63ff;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        select,
+        input[type="number"],
+        input[type="file"],
+        .txt,
+        .txtin {
+            font-family: inherit;
+            font-size: 14px;
+            padding: 0.5rem;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        select:focus,
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #6c63ff;
+            box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.1);
+        }
+
+        select {
+            cursor: pointer;
+            background: white;
+            padding: 0.5rem 2rem 0.5rem 0.5rem;
         }
 
         .txt {
-            width: 6rem;
-            font: 400 15px monospace;
+            width: 7rem;
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            pointer-events: none;
         }
 
         .txtin {
             text-align: center;
-            width: 3rem;
-            font: 400 15px monospace;
-            line-height: 20px;
+            width: 4rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        input[type='checkbox'] {
+            width: 18px;
+            height: 18px;
+            margin-right: 0.5rem;
+            cursor: pointer;
+            accent-color: #6c63ff;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            margin: 0.25rem;
+            width: calc(100% - 0.5rem);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
         }
 
         #data {
-            font: 400 13px monospace;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            resize: vertical;
+            margin: 0.5rem 0;
         }
 
         .desc {
-            width: 550px;
-            margin-left: 2rem;
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            color: #495057;
+            line-height: 1.8;
+            max-width: 800px;
+        }
+
+        .desc a {
+            color: #6c63ff;
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .desc a:hover {
+            border-bottom-color: #6c63ff;
+        }
+
+        .info-label {
+            font-size: 13px;
+            color: #6c757d;
+            font-style: italic;
+            margin-top: 0.25rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+
+        @media (max-width: 1200px) {
+            .sidebar {
+                width: 320px;
+            }
+
+            .sidebar-toggle {
+                left: 320px;
+            }
+
+            .main-content {
+                margin-left: 320px;
+            }
+
+            .sidebar.collapsed + .sidebar-toggle {
+                left: 0;
+            }
+
+            .sidebar.collapsed ~ .main-content {
+                margin-left: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 280px;
+            }
+
+            .sidebar-toggle {
+                left: 280px;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 1rem;
+            }
+
+            .sidebar.collapsed + .sidebar-toggle {
+                left: 0;
+            }
         }
     </style>
 </head>
 
 <body>
 
-    <div class='container'>
-        <canvas id='view' width="500px" height="500px"></canvas>
-    </div>
+    <div class='app-container'>
+        <div class='sidebar' id='sidebar'>
+            <div class='UI'>
+                <div class='sidebar-header'>
+                    <h2>⚙️ Controls</h2>
+                </div>
 
-    <div class='UI'>
+                <div class='control-section'>
+                    <div class='control-section-header' onclick='toggleSection(this)'>
+                        <strong>⏸ Paused</strong>
+                        <span class='control-section-toggle'>▼</span>
+                    </div>
+                    <div class='control-section-content'>
+                        <label>
+                            <input type='checkbox' id='paused' checked />
+                            Pause generation
+                        </label>
+                    </div>
+                </div>
 
-        <label>
-            <input type='checkbox' id='paused' checked />
-            <strong>Paused</strong>
-        </label>
-
-        <div class='sep'></div>
-
-        <label><select id='gensPerFrame'>
+                <div class='control-section'>
+                    <div class='control-section-header' onclick='toggleSection(this)'>
+                        <strong>⚡ Generation Settings</strong>
+                        <span class='control-section-toggle'>▼</span>
+                    </div>
+                    <div class='control-section-content'>
+                        <label><select id='gensPerFrame'>
                 <option>1</option>
                 <option>10</option>
                 <option selected='true'>20</option>
@@ -106,16 +396,19 @@
             </select> generations per frame
         </label>
         <label><input class='txt' id='preferFewer' value='0.001'> Fewer polys tolerance</label>
-        <span style="font-size: smaller;">
-            (score tolerance within which to drop polygons)
+        <span class='info-label'>
+            Score tolerance within which to drop polygons
         </span>
+                    </div>
+                </div>
 
-        <div class='sep'></div>
-        
-        <label>
-            <strong>Performance Optimization</strong>
-        </label>
-        <label><select id='mutationsPerGen'>
+        <div class='control-section'>
+            <div class='control-section-header' onclick='toggleSection(this)'>
+                <strong>⚙️ Performance</strong>
+                <span class='control-section-toggle'>▼</span>
+            </div>
+            <div class='control-section-content'>
+                <label><select id='mutationsPerGen'>
                 <option selected='true'>1</option>
                 <option>2</option>
                 <option>3</option>
@@ -124,87 +417,117 @@
             </select> mutations per generation
         </label>
         <label>
-            <input type='checkbox' id='fastMode' /> Fast mode (skip some Z-sorting)
+            <input type='checkbox' id='fastMode' /> Fast mode (skip Z-sorting)
         </label>
+                    </div>
+                </div>
 
-        <div class='sep'></div>
+        <div class='control-section'>
+            <div class='control-section-header' onclick='toggleSection(this)'>
+                <strong>📊 Statistics</strong>
+                <span class='control-section-toggle'>▼</span>
+            </div>
+            <div class='control-section-content'>
+                <div class='stats-grid'>
+                    <label><input class='txt' id='polys'> Polygons</label>
+                    <label><input class='txt' id='gens'> Generations</label>
+                    <label><input class='txt' id='gps'> Gens/s</label>
+                    <label><input class='txt' id='score'> Score (Front)</label>
+                    <label><input class='txt' id='scoreSide'> Score (Side)</label>
+                    <label><input class='txt' id='scoreCombined'> Score (Comb.)</label>
+                </div>
+                    </div>
+                </div>
 
-        <label><input class='txt' id='polys'> Polygons</label>
-        <label><input class='txt' id='gens'> Generations</label>
-        <label><input class='txt' id='gps'> Gens/s</label>
-        <label><input class='txt' id='score'> Score (Front)</label>
-        <label><input class='txt' id='scoreSide'> Score (Side)</label>
-        <label><input class='txt' id='scoreCombined'> Score (Combined)</label>
-        <div class='sep'></div>
+        <div class='control-section'>
+            <div class='control-section-header' onclick='toggleSection(this)'>
+                <strong>👁️ Dual-View Settings</strong>
+                <span class='control-section-toggle'>▼</span>
+            </div>
+            <div class='control-section-content'>
+            <label>
+                <input type='file' id='sideImageInput' accept='image/*'> Load side image
+            </label>
+            <label>
+                Front Weight: <input class='txtin' id='frontWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
+            </label>
+            <label>
+                Side Weight: <input class='txtin' id='sideWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
+            </label>
+                    </div>
+        </div>
 
-        <label>
-            <strong>Dual-View Settings</strong>
-        </label>
-        <label>
-            <input type='file' id='sideImageInput' accept='image/*'> Load side image
-        </label>
-        <label>
-            Front Weight: <input class='txtin' id='frontWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
-        </label>
-        <label>
-            Side Weight: <input class='txtin' id='sideWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
-        </label>
-        <div class='sep'></div>
+        <div class='control-section'>
+            <div class='control-section-header' onclick='toggleSection(this)'>
+                <strong>🎨 Appearance</strong>
+                <span class='control-section-toggle'>▼</span>
+            </div>
+            <div class='control-section-content'>
+            <label>
+                Alpha range:
+                <input class='txtin' id='minAlpha' value='0.1'> to
+                <input class='txtin' id='maxAlpha' value='0.5'>
+            </label>
+            <label>
+                Adjust amt: <input class='txtin' id='adjust' value='0.5'>
+            </label>
+                    </div>
+        </div>
 
-        <label>
-            Alpha range:
-            <input class='txtin' id='minAlpha' value='0.1'> to
-            <input class='txtin' id='maxAlpha' value='0.5'>
-        </label>
-        <label>
-            Adjust amt: <input class='txtin' id='adjust' value='0.5'>
-        </label>
-        <div class='sep'></div>
+        <div class='control-section'>
+            <div class='control-section-header' onclick='toggleSection(this)'>
+                <strong>💾 Data Export/Import</strong>
+                <span class='control-section-toggle'>▼</span>
+            </div>
+            <div class='control-section-content'>
+            <button id='export'>📥 Export vert/color data</button>
+            <textarea id='data' rows='3' cols='30'></textarea>
+            <button id='import'>📤 Import vert/color data</button>
+                    </div>
+        </div>
 
-        <button id='export'>Export vert/color data ↓</button>
-        <br>
-        <textarea id='data' rows='3' cols='30'></textarea>
-        <br>
-        <button id='import'>Import vert/color data ↑</button>
-        <div class='sep'></div>
+        <div class='control-section'>
+            <div class='control-section-header' onclick='toggleSection(this)'>
+                <strong>🔍 View Options</strong>
+                <span class='control-section-toggle'>▼</span>
+            </div>
+            <div class='control-section-content'>
+            <label>
+                <input type='checkbox' id='showRef' />Show reference
+            </label>
+                    </div>
+        </div>
 
-        <label>
-            <input type='checkbox' id='showRef' />Show reference
-        </label>
-        <label>
-            <input type='checkbox' id='showScr' />Scratch buffer
-        </label>
-        <label>
-            <input type='checkbox' id='showSide' />Show side view
-        </label>
+            </div>
+        </div>
 
+        <button class='sidebar-toggle' id='sidebarToggle' onclick='toggleSidebar()'>◀</button>
+
+        <div class='main-content'>
+            <div class='container canvas-container'>
+                <canvas id='view' width="700px" height="700px"></canvas>
+            </div>
+        </div>
     </div>
 
-    <br clear='left'>
-    <p class='desc'>
-        To change the front target image drag an image onto this page.
-        <br>
-        For dual-view mode, use the "Load side image" button to add a second target.
-    </p>
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const toggle = document.getElementById('sidebarToggle');
+            sidebar.classList.toggle('collapsed');
+            toggle.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
+        }
 
-    <p class='desc'>
-        Or check out some built examples:
-        &mdash; <a href="./viewer.html">Mona</a>
-        &mdash; <a href="./viewer-vermeer.html">Vermeer</a>
-    </p>
+        function toggleSection(header) {
+            const section = header.parentElement;
+            section.classList.toggle('collapsed');
+        }
 
-    <p class='desc' style="width: 500px;">
-        You can also specify a size for the internal comparison texture
-        in this page's query string,
-        <a href="./index.html?size=128">thusly</a>.
-    </p>
-
-    <p class='desc'>
-        Back to <a href="https://github.com/fenomas/glsl-projectron">GLSL-Projectron</a>
-    </p>
-
-    <br>
-    <br>
+        // Prevent control sections from being collapsed by default
+        document.addEventListener('DOMContentLoaded', function() {
+            // All sections are expanded by default
+        });
+    </script>
 
     <script src="maker-bundle.js"></script>
 

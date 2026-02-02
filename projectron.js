@@ -61,6 +61,8 @@ export function Projectron(canvas, size) {
 	var skipZSortCounter = 0
 	var mutationsPerGeneration = 1  // Can increase for faster exploration
 	var fastMode = false  // Toggle for speed optimizations
+	var totalGenerations = 0  // Track total generations for annealing
+	var useSimulatedAnnealing = true  // Enable/disable annealing
 
 
 
@@ -93,6 +95,7 @@ export function Projectron(canvas, size) {
 	}
 	this.setMutationsPerGeneration = (n) => { mutationsPerGeneration = Math.max(1, Math.min(10, n)) }
 	this.setFastMode = (enabled) => { fastMode = enabled }
+	this.setSimulatedAnnealing = (enabled) => { useSimulatedAnnealing = enabled }
 	this.draw = (x, y) => { paint(x, y) }
 	this.drawSideView = (x, y) => { paintSideView(x, y) }
 	this.drawTargetImage = () => { paintReference() }
@@ -192,8 +195,14 @@ export function Projectron(canvas, size) {
 	this.runGeneration = function () {
 		if (!tgtTexture) return
 
+		totalGenerations++
 		var bestScore = currentScoreCombined
 		var bestMutation = null
+		
+		// Simulated annealing temperature (decreases over time)
+		// Starts high (allows worse solutions), decreases to near-zero
+		var temperature = useSimulatedAnnealing ? 
+			Math.max(0.001, 5.0 * Math.exp(-totalGenerations / 2000)) : 0
 		
 		// Try multiple mutations and keep the best one
 		for (var attempt = 0; attempt < mutationsPerGeneration; attempt++) {
@@ -244,6 +253,15 @@ export function Projectron(canvas, size) {
 
 			var keep = (scoreCombined > bestScore)
 
+			// Simulated annealing: occasionally accept worse solutions
+			if (!keep && temperature > 0.001) {
+				var scoreDelta = scoreCombined - bestScore
+				var acceptanceProbability = Math.exp(scoreDelta / temperature)
+				if (Math.random() < acceptanceProbability) {
+					keep = true
+				}
+			}
+
 			// prefer to remove polys even if score drop is within tolerance
 			if (!keep && polys.getNumVerts() < vertCount) {
 				if (scoreCombined > bestScore - fewerPolysTolerance) keep = true
@@ -290,28 +308,55 @@ export function Projectron(canvas, size) {
 		// mutate one thing
 		var r = rand()
 		
-		// Bias toward color mutations when score is low (faster convergence)
-		var colorBias = currentScoreCombined < 50 ? 0.6 : 0.25
+		// Adaptive mutation based on score
+		var isHighScore = currentScoreCombined > 95
+		var isStuck = generationsSinceImprovement > 500
 		
-		// Occasionally do multiple mutations or add aggressive changes
-		if (generationsSinceImprovement > 2000 && r < 0.1) {
-			// Aggressive exploration: multiple mutations
-			for (var i = 0; i < 3; i++) {
-				var rr = rand()
-				if (rr < 0.3) polys.mutateValue()
-				else if (rr < 0.6) polys.mutateVertex()
-				else if (rr < 0.8) polys.addPoly()
+		// High score: use fine-tuning mutations
+		if (isHighScore && !isStuck) {
+			if (r < 0.7) {
+				polys.mutateValueFine()
+			} else if (r < 0.9) {
+				polys.mutateVertex()
+			} else {
+				polys.removePoly()  // Try simplifying
 			}
-		} else if (r < colorBias) {
-			// Color/alpha mutations (faster to compute)
-			polys.mutateValue()
-		} else if (r < 0.5) {
-			// Vertex position mutations
-			polys.mutateVertex()
-		} else if (r < 0.8) {
-			polys.addPoly()
-		} else {
-			polys.removePoly()
+		}
+		// Stuck: aggressive exploration
+		else if (isStuck) {
+			if (r < 0.15) {
+				// Mutate entire polygon at once
+				polys.mutatePolygon()
+			} else if (r < 0.3) {
+				// Multiple mutations
+				for (var i = 0; i < (isHighScore ? 2 : 3); i++) {
+					var rr = rand()
+					if (rr < 0.4) polys.mutateValue()
+					else if (rr < 0.7) polys.mutateVertex()
+					else polys.addPoly()
+				}
+			} else if (r < 0.5) {
+				polys.addPoly()
+			} else if (r < 0.7) {
+				polys.removePoly()
+			} else {
+				polys.mutateVertex()
+			}
+		}
+		// Normal evolution
+		else {
+			// Bias toward color mutations when score is low (faster convergence)
+			var colorBias = currentScoreCombined < 50 ? 0.6 : 0.25
+			
+			if (r < colorBias) {
+				polys.mutateValue()
+			} else if (r < 0.5) {
+				polys.mutateVertex()
+			} else if (r < 0.8) {
+				polys.addPoly()
+			} else {
+				polys.removePoly()
+			}
 		}
 	}
 
