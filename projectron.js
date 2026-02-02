@@ -76,6 +76,10 @@ export function Projectron(canvas, size) {
 	this.setViewWeights = (frontWeight, sideWeight) => {
 		scoreWeightFront = frontWeight
 		scoreWeightSide = sideWeight
+		// Recalculate combined score with new weights
+		if (tgtTexture && tgtTextureSide) {
+			currentScoreCombined = (currentScore * scoreWeightFront) + (currentScoreSide * scoreWeightSide)
+		}
 	}
 
 	this.getScore = () => currentScore

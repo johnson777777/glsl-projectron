@@ -118,12 +118,14 @@ var lastGenCt = 0
 var lastHtmlUpdate = 0
 
 
-// core RAF loop
-function render() {
+// Decoupled generation loop - runs as fast as possible
+function generationLoop() {
     if (!paused && frontImageLoaded && (!dualViewEnabled || sideImageLoaded)) {
         for (var i = 0; i < gensPerFrame; i++) proj.runGeneration()
         generations += gensPerFrame
+        drawNeeded = true
     }
+    
     var now = performance.now()
     if (now - lastHtmlUpdate > 500) {
         gensPerSec = (generations - lastGenCt) / (now - lastHtmlUpdate) * 1000
@@ -131,6 +133,14 @@ function render() {
         lastGenCt = generations
         lastHtmlUpdate = now
     }
+    
+    // Continue loop as fast as possible
+    setTimeout(generationLoop, 0)
+}
+
+// RAF loop - only for rendering at reasonable intervals
+function render() {
+    var now = performance.now()
     if (now - lastDraw > 500 || (paused && drawNeeded)) {
         if (showReference) {
             // Determine which reference to show based on camera angle
@@ -152,6 +162,9 @@ function render() {
     }
     requestAnimationFrame(render)
 }
+
+// Start both loops
+generationLoop()
 render()
 
 
@@ -232,6 +245,15 @@ $('import').addEventListener('click', ev => {
         console.log('Import deferred until images load')
     }
 })
+
+// Reset function
+window.resetProjectron = () => {
+    generations = 0
+    // Import minimal valid data to clear polygons
+    proj.importData('vert-xyz,\ncol-rgba,')
+    drawNeeded = true
+    updateHTML()
+}
 
 function updateHTML() {
     $('polys').value = proj.getNumPolys()
@@ -443,14 +465,46 @@ window.addEventListener('load', function () {
     
     // Image gallery handler for front image
     var frontGallery = $('frontImageGallery')
+    var sideGallery = $('sideImageGallery')
+    
+    // Helper function to update gallery selection
+    function updateGallerySelection(gallery, selectedValue) {
+        if (!gallery) return
+        var items = gallery.querySelectorAll('.image-preview-item')
+        items.forEach(item => {
+            if (item.getAttribute('data-value') === selectedValue) {
+                item.classList.add('selected')
+            } else {
+                item.classList.remove('selected')
+            }
+        })
+    }
+    
     if (frontGallery) {
         frontGallery.addEventListener('imageSelected', ev => {
             var imagePath = './' + ev.detail.value
             var img = new Image()
             img.onload = () => { setImage(img) }
             img.src = imagePath
+            // Update selected state in gallery
+            updateGallerySelection(frontGallery, ev.detail.value)
         })
     }
+    
+    if (sideGallery) {
+        sideGallery.addEventListener('imageSelected', ev => {
+            var imagePath = './' + ev.detail.value
+            var img = new Image()
+            img.onload = () => { setImageSide(img) }
+            img.src = imagePath
+            // Update selected state in gallery
+            updateGallerySelection(sideGallery, ev.detail.value)
+        })
+    }
+    
+    // Preselect default images
+    if (frontGallery) updateGallerySelection(frontGallery, 'img/mona512.jpg')
+    if (sideGallery) updateGallerySelection(sideGallery, 'img/monaside.png')
     
     // File input handler for front image (if exists)
     var frontImageInput = $('frontImageInput')
@@ -463,20 +517,14 @@ window.addEventListener('load', function () {
                 var reader = new FileReader()
                 reader.onloadend = e => { img.src = e.target.result }
                 reader.readAsDataURL(file)
+                // Clear gallery selection for custom upload
+                if (frontGallery) updateGallerySelection(frontGallery, 'custom')
             }
         })
     }
     
-    // Image gallery handler for side image
-    var sideGallery = $('sideImageGallery')
-    if (sideGallery) {
-        sideGallery.addEventListener('imageSelected', ev => {
-            var imagePath = './' + ev.detail.value
-            var img = new Image()
-            img.onload = () => { setImageSide(img) }
-            img.src = imagePath
-        })
-    }
+    // Image gallery handler for side image (kept for structure, but event listener is above)
+    // var sideGallery = $('sideImageGallery')
     
     // File input handler for side image
     var sideImageInput = $('sideImageInput')
@@ -489,6 +537,8 @@ window.addEventListener('load', function () {
                 var reader = new FileReader()
                 reader.onloadend = e => { img.src = e.target.result }
                 reader.readAsDataURL(file)
+                // Clear gallery selection for custom upload
+                if (sideGallery) updateGallerySelection(sideGallery, 'custom')
             }
         })
     }

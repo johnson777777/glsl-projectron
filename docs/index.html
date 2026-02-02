@@ -427,6 +427,9 @@
                             ▶️ Start Generation
                         </button>
                         <input type='checkbox' id='paused' checked style='display: none;' />
+                        <button id='resetBtn' onclick='resetCanvas()' style='font-size: 16px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);'>
+                            🔄 Reset Canvas
+                        </button>
                         
                         <hr style='margin: 1rem 0; border: none; border-top: 1px solid #e0e0e0;'>
                         
@@ -448,22 +451,7 @@
                         <span class='control-section-toggle'>▼</span>
                     </div>
                     <div class='control-section-content'>
-                        <label style='font-size: 14px;'><select id='gensPerFrame' style='font-size: 14px;'>
-                <option>1</option>
-                <option>10</option>
-                <option selected='true'>20</option>
-                <option>50</option>
-                <option>100</option>
-            </select> generations per frame
-        </label>
-        <label style='font-size: 14px;'><input class='txt' id='preferFewer' value='0.001' style='font-size: 14px;'> Fewer polys tolerance</label>
-        <span class='info-label'>
-            Score tolerance within which to drop polygons
-        </span>
-
-        <hr style='margin: 1rem 0; border: none; border-top: 1px solid #e0e0e0;'>
-
-        <strong style='display: block; margin-bottom: 0.5rem; font-size: 14px;'>👁️ Dual-View Settings</strong>
+                        <strong style='display: block; margin-bottom: 0.5rem; font-size: 14px;'>👁️ Dual-View Settings</strong>
         <label style='font-size: 14px;'>
             Front Image:
             <div class='image-preview-gallery' id='frontImageGallery'>
@@ -507,13 +495,27 @@
         </label>
         <input type='file' id='sideImageInput' accept='image/*' style='display: none;'>
         <label style='font-size: 14px;'>
-            View Balance: <span id='weightDisplay'>50/50</span><br>
+            Weight Distribution: <span id='weightDisplay'>50/50</span><br>
             <span style='font-size: 12px; color: #6c757d;'>Front</span>
             <input type='range' id='viewBalance' min='0' max='100' value='50' style='width: 100%; margin: 0.5rem 0;'>
             <span style='font-size: 12px; color: #6c757d; float: right;'>Side</span>
         </label>
         <input class='txtin' id='frontWeight' type='number' min='0' max='1' step='0.1' value='0.5' style='display: none;'>
         <input class='txtin' id='sideWeight' type='number' min='0' max='1' step='0.1' value='0.5' style='display: none;'>
+
+        <hr style='margin: 1rem 0; border: none; border-top: 1px solid #e0e0e0;'>
+
+        <strong style='display: block; margin-bottom: 0.5rem; font-size: 14px;'>⚙️ Generation Parameters</strong>
+        <label style='font-size: 14px;'>
+            Generations per frame: <span id='gensPerFrameDisplay'>20</span>
+            <input type='range' id='gensPerFrame' min='1' max='100' value='20' style='width: 100%; margin: 0.5rem 0;'>
+            <span style='font-size: 12px; color: #6c757d;'>1</span>
+            <span style='font-size: 12px; color: #6c757d; float: right;'>100</span>
+        </label>
+        <label style='font-size: 14px;'><input class='txt' id='preferFewer' value='0.001' style='font-size: 14px;'> Fewer polys tolerance</label>
+        <span class='info-label'>
+            Score tolerance within which to drop polygons
+        </span>
 
         <hr style='margin: 1rem 0; border: none; border-top: 1px solid #e0e0e0;'>
 
@@ -596,6 +598,13 @@
             }
         }
 
+        function resetCanvas() {
+            // This will be called from maker.js after it's loaded
+            if (window.resetProjectron) {
+                window.resetProjectron();
+            }
+        }
+
         // Prevent control sections from being collapsed by default
         document.addEventListener('DOMContentLoaded', function() {
             // All sections are expanded by default
@@ -609,15 +618,26 @@
             if (balanceSlider) {
                 balanceSlider.addEventListener('input', function() {
                     const value = parseInt(this.value);
-                    const front = value / 100;
-                    const side = 1 - front;
+                    const front = (100 - value) / 100;  // Invert so left (0) = front (1)
+                    const side = value / 100;
                     frontWeight.value = front.toFixed(1);
                     sideWeight.value = side.toFixed(1);
-                    weightDisplay.textContent = value + '/' + (100 - value);
+                    weightDisplay.textContent = (100 - value) + '/' + value;
                     
                     // Trigger change events
                     frontWeight.dispatchEvent(new Event('change'));
                     sideWeight.dispatchEvent(new Event('change'));
+                });
+            }
+            
+            // Setup generations per frame slider
+            const gensPerFrameSlider = document.getElementById('gensPerFrame');
+            const gensPerFrameDisplay = document.getElementById('gensPerFrameDisplay');
+            
+            if (gensPerFrameSlider && gensPerFrameDisplay) {
+                gensPerFrameSlider.addEventListener('input', function() {
+                    const value = parseInt(this.value);
+                    gensPerFrameDisplay.textContent = value;
                 });
             }
             
