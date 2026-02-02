@@ -111,6 +111,23 @@
         </span>
 
         <div class='sep'></div>
+        
+        <label>
+            <strong>Performance Optimization</strong>
+        </label>
+        <label><select id='mutationsPerGen'>
+                <option selected='true'>1</option>
+                <option>2</option>
+                <option>3</option>
+                <option>5</option>
+                <option>10</option>
+            </select> mutations per generation
+        </label>
+        <label>
+            <input type='checkbox' id='fastMode' /> Fast mode (skip some Z-sorting)
+        </label>
+
+        <div class='sep'></div>
 
         <label><input class='txt' id='polys'> Polygons</label>
         <label><input class='txt' id='gens'> Generations</label>

@@ -22,15 +22,19 @@ if (s > 8) size = s
 var canvas = $('view')
 var proj = new Projectron(canvas, size)
 
+var imgSide = null
+var dualViewEnabled = false
+var frontImageLoaded = false
+var sideImageLoaded = false
+var pendingData = null
+
+// Load default front image
 var img = new Image()
 img.onload = () => { setImage(img) }
 img.src = './img/mona512.jpg'
 
 // img.src = './img/lena.png'
 // img.src = './img/teapot512.png'
-
-var imgSide = null
-var dualViewEnabled = false
 
 // Load default side image
 var imgSideDefault = new Image()
@@ -40,6 +44,8 @@ imgSideDefault.src = './img/monaside.png'
 function setImage(img) {
     generations = 0
     proj.setTargetImage(img)
+    frontImageLoaded = true
+    checkAndLoadPendingData()
 }
 
 function setImageSide(img) {
@@ -47,8 +53,34 @@ function setImageSide(img) {
     generations = 0
     proj.setTargetImageSide(img)
     dualViewEnabled = true
+    sideImageLoaded = true
     updateHTML()
+    checkAndLoadPendingData()
 }
+
+function checkAndLoadPendingData() {
+    // Only import data after both images are loaded
+    if (pendingData && frontImageLoaded && sideImageLoaded) {
+        console.log('Both images loaded, importing data')
+        proj.importData(pendingData)
+        pendingData = null
+        drawNeeded = true
+    }
+}
+
+// Load default data from data.txt on startup
+fetch('./data.txt')
+    .then(response => response.text())
+    .then(data => {
+        if (data && data.trim().length > 0) {
+            console.log('Data loaded, waiting for images...')
+            pendingData = data
+            checkAndLoadPendingData()
+        }
+    })
+    .catch(err => {
+        console.log('No default data file found or error loading:', err.message)
+    })
 
 console.log('GLSL-Projectron  ver ' + proj.version)
 
@@ -86,7 +118,7 @@ var lastHtmlUpdate = 0
 
 // core RAF loop
 function render() {
-    if (!paused) {
+    if (!paused && frontImageLoaded && (!dualViewEnabled || sideImageLoaded)) {
         for (var i = 0; i < gensPerFrame; i++) proj.runGeneration()
         generations += gensPerFrame
     }
@@ -163,6 +195,14 @@ setupInput('maxAlpha', val => { maxAlpha = parseFloat(val); setAlpha() })
 setupInput('adjust', val => { proj.setAdjustAmount(parseFloat(val) || 0.5) })
 setupInput('preferFewer', val => { proj.setFewerPolyTolerance(parseFloat(val) || 0) })
 
+// Performance optimization controls
+setupInput('mutationsPerGen', val => { 
+    proj.setMutationsPerGeneration(parseInt(val) || 1)
+})
+setupInput('fastMode', val => { 
+    proj.setFastMode(val)
+})
+
 // Dual-view weight controls
 var frontWeight = 0.5
 var sideWeight = 0.5
@@ -171,6 +211,7 @@ setupInput('frontWeight', val => {
     sideWeight = 1 - frontWeight
     proj.setViewWeights(frontWeight, sideWeight)
     if ($('sideWeight')) $('sideWeight').value = sideWeight.toFixed(2)
+    drawNeeded = true
     updateHTML()
 })
 setupInput('sideWeight', val => {
@@ -178,6 +219,7 @@ setupInput('sideWeight', val => {
     frontWeight = 1 - sideWeight
     proj.setViewWeights(frontWeight, sideWeight)
     if ($('frontWeight')) $('frontWeight').value = frontWeight.toFixed(2)
+    drawNeeded = true
     updateHTML()
 })
 
@@ -188,8 +230,18 @@ $('export').addEventListener('click', ev => {
 
 $('import').addEventListener('click', ev => {
     var dat = $('data').value
-    var res = proj.importData(dat)
-    if (res) $('data').value = ''
+    if (!dat) return
+    
+    // Check if images are loaded before importing
+    if (frontImageLoaded && (!dualViewEnabled || sideImageLoaded)) {
+        var res = proj.importData(dat)
+        if (res) $('data').value = ''
+        drawNeeded = true
+    } else {
+        // Defer import until images load
+        pendingData = dat
+        console.log('Import deferred until images load')
+    }
 })
 
 function updateHTML() {
@@ -302,6 +354,21 @@ window.addEventListener('load', function () {
     var stopPrevent = ev => {
         ev.stopPropagation()
         ev.preventDefault()
+    }
+    
+    // File input handler for front image (if exists)
+    var frontImageInput = $('frontImageInput')
+    if (frontImageInput) {
+        frontImageInput.addEventListener('change', ev => {
+            var file = ev.target.files[0]
+            if (file && file.type.match(/image.*/)) {
+                var img = new Image()
+                img.onload = () => { setImage(img) }
+                var reader = new FileReader()
+                reader.onloadend = e => { img.src = e.target.result }
+                reader.readAsDataURL(file)
+            }
+        })
     }
     
     // File input handler for side image

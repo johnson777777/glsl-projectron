@@ -53,8 +53,14 @@ export function Projectron(canvas, size) {
 	var currentScoreCombined = -100
 	var sideViewRotation = Math.PI / 2
 	var scoreWeightFront = 0.5
-	var sideViewXScale = 2.0  // Scale X-axis for better side view depth
 	var scoreWeightSide = 0.5
+
+	// Adaptive mutation tracking
+	var generationsSinceImprovement = 0
+	var lastImprovementScore = -100
+	var skipZSortCounter = 0
+	var mutationsPerGeneration = 1  // Can increase for faster exploration
+	var fastMode = false  // Toggle for speed optimizations
 
 
 
@@ -80,6 +86,13 @@ export function Projectron(canvas, size) {
 	this.getScoreSide = () => currentScoreSide
 	this.getScoreCombined = () => currentScoreCombined
 	this.getNumPolys = () => polys.getNumPolys()
+	this.getGenerationsSinceImprovement = () => generationsSinceImprovement
+	this.resetStagnation = () => { 
+		generationsSinceImprovement = 0
+		lastImprovementScore = currentScoreCombined
+	}
+	this.setMutationsPerGeneration = (n) => { mutationsPerGeneration = Math.max(1, Math.min(10, n)) }
+	this.setFastMode = (enabled) => { fastMode = enabled }
 	this.draw = (x, y) => { paint(x, y) }
 	this.drawSideView = (x, y) => { paintSideView(x, y) }
 	this.drawTargetImage = () => { paintReference() }
@@ -179,48 +192,96 @@ export function Projectron(canvas, size) {
 	this.runGeneration = function () {
 		if (!tgtTexture) return
 
-		polys.cacheDataNow()
-		var vertCount = polys.getNumVerts()
-		mutateSomething()
-		// resort data, render it, and compare new score
-		polys.sortPolygonsByZ()
-		vertBuffer.update(polys.getVertArray())
-		colBuffer.update(polys.getColorArray())
-		polyBuffersOutdated = false
+		var bestScore = currentScoreCombined
+		var bestMutation = null
+		
+		// Try multiple mutations and keep the best one
+		for (var attempt = 0; attempt < mutationsPerGeneration; attempt++) {
+			polys.cacheDataNow()
+			var vertCount = polys.getNumVerts()
+			
+			// Adaptive mutation: increase aggressiveness if stuck
+			generationsSinceImprovement++
+			if (generationsSinceImprovement > 1000) {
+				// Temporarily increase adjustment amount for exploration
+				var originalAdjust = 0.5
+				polys.setAdjust(Math.min(1.0, 0.5 + generationsSinceImprovement / 5000))
+				mutateSomething()
+				polys.setAdjust(originalAdjust)
+			} else {
+				mutateSomething()
+			}
+			
+			// Conditional Z-sorting: skip if only color mutations or in fast mode
+			var needsSort = true
+			if (fastMode && skipZSortCounter < 10) {
+				needsSort = false
+				skipZSortCounter++
+			} else {
+				skipZSortCounter = 0
+			}
+			
+			if (needsSort) polys.sortPolygonsByZ()
+			
+			vertBuffer.update(polys.getVertArray())
+			colBuffer.update(polys.getColorArray())
+			polyBuffersOutdated = false
 
-		// FRONT VIEW RENDERING
-		drawData(scratchFB, perspective, null)
-		var scoreFront = compareFBOs(referenceFB, scratchFB)
+			// FRONT VIEW RENDERING
+			drawData(scratchFB, perspective, null)
+			var scoreFront = compareFBOs(referenceFB, scratchFB)
 
-		// SIDE VIEW RENDERING (if second target exists)
-		var scoreSide = 0
-		var scoreCombined = scoreFront
-		if (tgtTextureSide) {
-			var sideMatrix = mat4.create()
-			// Apply same X-axis scaling as in paintSideView
-			mat4.scale(sideMatrix, sideMatrix, [sideViewXScale, 1.0, 1.0])
-			mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
-			drawData(scratchFBSide, perspective, sideMatrix)
-			scoreSide = compareFBOs(referenceFBSide, scratchFBSide)
-			scoreCombined = (scoreFront * scoreWeightFront) + (scoreSide * scoreWeightSide)
-		}
+			// SIDE VIEW RENDERING (if second target exists)
+			var scoreSide = 0
+			var scoreCombined = scoreFront
+			if (tgtTextureSide) {
+				var sideMatrix = mat4.create()
+				mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
+				drawData(scratchFBSide, perspective, sideMatrix)
+				scoreSide = compareFBOs(referenceFBSide, scratchFBSide)
+				scoreCombined = (scoreFront * scoreWeightFront) + (scoreSide * scoreWeightSide)
+			}
 
-		var keep = (scoreCombined > currentScoreCombined)
+			var keep = (scoreCombined > bestScore)
 
-		// prefer to remove polys even if score drop is within tolerance
-		if (!keep && polys.getNumVerts() < vertCount) {
-			if (scoreCombined > currentScoreCombined - fewerPolysTolerance) keep = true
-		}
+			// prefer to remove polys even if score drop is within tolerance
+			if (!keep && polys.getNumVerts() < vertCount) {
+				if (scoreCombined > bestScore - fewerPolysTolerance) keep = true
+			}
 
-		if (keep) {
-			currentScore = scoreFront
-			currentScoreSide = scoreSide
-			currentScoreCombined = scoreCombined
-		} else {
+			if (keep) {
+				// This mutation is better, save it
+				bestScore = scoreCombined
+				bestMutation = {
+					vertArr: polys.getVertArray().slice(),
+					colArr: polys.getColorArray().slice(),
+					scoreFront: scoreFront,
+					scoreSide: scoreSide,
+					scoreCombined: scoreCombined
+				}
+			}
+			
 			polys.restoreCachedData()
+		}
+		
+		// Apply the best mutation found (if any)
+		if (bestMutation) {
+			polys.setArrays(bestMutation.vertArr, bestMutation.colArr)
+			vertBuffer.update(polys.getVertArray())
+			colBuffer.update(polys.getColorArray())
+			currentScore = bestMutation.scoreFront
+			currentScoreSide = bestMutation.scoreSide
+			currentScoreCombined = bestMutation.scoreCombined
+			
+			// Reset stagnation counter if meaningful improvement
+			if (bestMutation.scoreCombined > lastImprovementScore + 0.001) {
+				generationsSinceImprovement = 0
+				lastImprovementScore = bestMutation.scoreCombined
+			}
+			polyBuffersOutdated = false
+		} else {
+			// No improvement, buffers are already correct from restore
 			polyBuffersOutdated = true
-			// vertBuffer/colBuffer are now wrong but leave them since it's costly
-			// update them next generation or in render() if needed
 		}
 	}
 
@@ -228,9 +289,24 @@ export function Projectron(canvas, size) {
 	function mutateSomething() {
 		// mutate one thing
 		var r = rand()
-		if (r < 0.25) {
+		
+		// Bias toward color mutations when score is low (faster convergence)
+		var colorBias = currentScoreCombined < 50 ? 0.6 : 0.25
+		
+		// Occasionally do multiple mutations or add aggressive changes
+		if (generationsSinceImprovement > 2000 && r < 0.1) {
+			// Aggressive exploration: multiple mutations
+			for (var i = 0; i < 3; i++) {
+				var rr = rand()
+				if (rr < 0.3) polys.mutateValue()
+				else if (rr < 0.6) polys.mutateVertex()
+				else if (rr < 0.8) polys.addPoly()
+			}
+		} else if (r < colorBias) {
+			// Color/alpha mutations (faster to compute)
 			polys.mutateValue()
 		} else if (r < 0.5) {
+			// Vertex position mutations
 			polys.mutateVertex()
 		} else if (r < 0.8) {
 			polys.addPoly()
@@ -267,7 +343,6 @@ export function Projectron(canvas, size) {
 			drawData(scratchFB, perspective, null)
 			currentScore = compareFBOs(referenceFB, scratchFB)
 			var sideMatrix = mat4.create()
-			mat4.scale(sideMatrix, sideMatrix, [sideViewXScale, 1.0, 1.0])
 			mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
 			drawData(scratchFBSide, perspective, sideMatrix)
 			currentScoreSide = compareFBOs(referenceFBSide, scratchFBSide)
@@ -289,7 +364,6 @@ export function Projectron(canvas, size) {
 			drawData(scratchFB, perspective, null)
 			currentScore = compareFBOs(referenceFB, scratchFB)
 			var sideMatrix = mat4.create()
-			mat4.scale(sideMatrix, sideMatrix, [sideViewXScale, 1.0, 1.0])
 			mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
 			drawData(scratchFBSide, perspective, sideMatrix)
 			currentScoreSide = compareFBOs(referenceFBSide, scratchFBSide)
@@ -340,8 +414,6 @@ export function Projectron(canvas, size) {
 		}
 		// create side view matrix (90° + optional user rotation)
 		camMatrix = mat4.create()
-		// Apply X-axis scaling to widen the side view
-		mat4.scale(camMatrix, camMatrix, [sideViewXScale, 1.0, 1.0])
 		mat4.rotateY(camMatrix, camMatrix, sideViewRotation + (xRot || 0))
 		mat4.rotateX(camMatrix, camMatrix, yRot || 0)
 		drawData(null, perspective, camMatrix)
@@ -551,7 +623,6 @@ export function Projectron(canvas, size) {
 				drawData(scratchFB, perspective, null)
 				currentScore = compareFBOs(referenceFB, scratchFB)
 				var sideMatrix = mat4.create()
-				mat4.scale(sideMatrix, sideMatrix, [sideViewXScale, 1.0, 1.0])
 				mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
 				drawData(scratchFBSide, perspective, sideMatrix)
 				currentScoreSide = compareFBOs(referenceFBSide, scratchFBSide)
