@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "start": "webpack-dev-server",
-    "build": "export NODE_OPTIONS=--openssl-legacy-provider; webpack --env.production"
+    "build": "webpack --env.production"
   },
   "dependencies": {
     "game-shell": "github:mikolalysenko/game-shell",
