@@ -399,25 +399,33 @@
         <span class='info-label'>
             Score tolerance within which to drop polygons
         </span>
-                    </div>
-                </div>
 
-        <div class='control-section'>
-            <div class='control-section-header' onclick='toggleSection(this)'>
-                <strong>⚙️ Performance</strong>
-                <span class='control-section-toggle'>▼</span>
-            </div>
-            <div class='control-section-content'>
-                <label><select id='mutationsPerGen'>
-                <option selected='true'>1</option>
-                <option>2</option>
-                <option>3</option>
-                <option>5</option>
-                <option>10</option>
-            </select> mutations per generation
+        <hr style='margin: 1rem 0; border: none; border-top: 1px solid #e0e0e0;'>
+
+        <strong style='display: block; margin-bottom: 0.5rem;'>👁️ Dual-View Settings</strong>
+        <label>
+            <input type='file' id='frontImageInput' accept='image/*'> Load front image
         </label>
         <label>
-            <input type='checkbox' id='fastMode' /> Fast mode (skip Z-sorting)
+            <input type='file' id='sideImageInput' accept='image/*'> Load side image
+        </label>
+        <label>
+            Front Weight: <input class='txtin' id='frontWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
+        </label>
+        <label>
+            Side Weight: <input class='txtin' id='sideWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
+        </label>
+
+        <hr style='margin: 1rem 0; border: none; border-top: 1px solid #e0e0e0;'>
+
+        <strong style='display: block; margin-bottom: 0.5rem;'>🎨 Appearance</strong>
+        <label>
+            Alpha range:
+            <input class='txtin' id='minAlpha' value='0.1'> to
+            <input class='txtin' id='maxAlpha' value='0.5'>
+        </label>
+        <label>
+            Adjust amt: <input class='txtin' id='adjust' value='0.5'>
         </label>
                     </div>
                 </div>
@@ -441,47 +449,13 @@
 
         <div class='control-section'>
             <div class='control-section-header' onclick='toggleSection(this)'>
-                <strong>👁️ Dual-View Settings</strong>
-                <span class='control-section-toggle'>▼</span>
-            </div>
-            <div class='control-section-content'>
-            <label>
-                <input type='file' id='sideImageInput' accept='image/*'> Load side image
-            </label>
-            <label>
-                Front Weight: <input class='txtin' id='frontWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
-            </label>
-            <label>
-                Side Weight: <input class='txtin' id='sideWeight' type='number' min='0' max='1' step='0.1' value='0.5'>
-            </label>
-                    </div>
-        </div>
-
-        <div class='control-section'>
-            <div class='control-section-header' onclick='toggleSection(this)'>
-                <strong>🎨 Appearance</strong>
-                <span class='control-section-toggle'>▼</span>
-            </div>
-            <div class='control-section-content'>
-            <label>
-                Alpha range:
-                <input class='txtin' id='minAlpha' value='0.1'> to
-                <input class='txtin' id='maxAlpha' value='0.5'>
-            </label>
-            <label>
-                Adjust amt: <input class='txtin' id='adjust' value='0.5'>
-            </label>
-                    </div>
-        </div>
-
-        <div class='control-section'>
-            <div class='control-section-header' onclick='toggleSection(this)'>
                 <strong>💾 Data Export/Import</strong>
                 <span class='control-section-toggle'>▼</span>
             </div>
             <div class='control-section-content'>
             <button id='export'>📥 Export vert/color data</button>
-            <textarea id='data' rows='3' cols='30'></textarea>
+            <textarea id='data' rows='3' cols='30'>
+            </textarea>
             <button id='import'>📤 Import vert/color data</button>
                     </div>
         </div>

@@ -55,14 +55,9 @@ export function Projectron(canvas, size) {
 	var scoreWeightFront = 0.5
 	var scoreWeightSide = 0.5
 
-	// Adaptive mutation tracking
+	// Mutation tracking
 	var generationsSinceImprovement = 0
 	var lastImprovementScore = -100
-	var skipZSortCounter = 0
-	var mutationsPerGeneration = 1  // Can increase for faster exploration
-	var fastMode = false  // Toggle for speed optimizations
-	var totalGenerations = 0  // Track total generations for annealing
-	var useSimulatedAnnealing = true  // Enable/disable annealing
 
 
 
@@ -93,9 +88,6 @@ export function Projectron(canvas, size) {
 		generationsSinceImprovement = 0
 		lastImprovementScore = currentScoreCombined
 	}
-	this.setMutationsPerGeneration = (n) => { mutationsPerGeneration = Math.max(1, Math.min(10, n)) }
-	this.setFastMode = (enabled) => { fastMode = enabled }
-	this.setSimulatedAnnealing = (enabled) => { useSimulatedAnnealing = enabled }
 	this.draw = (x, y) => { paint(x, y) }
 	this.drawSideView = (x, y) => { paintSideView(x, y) }
 	this.drawTargetImage = () => { paintReference() }
@@ -195,168 +187,77 @@ export function Projectron(canvas, size) {
 	this.runGeneration = function () {
 		if (!tgtTexture) return
 
-		totalGenerations++
-		var bestScore = currentScoreCombined
-		var bestMutation = null
+		// Cache current state before mutation
+		polys.cacheDataNow()
+		var vertCount = polys.getNumVerts()
 		
-		// Simulated annealing temperature (decreases over time)
-		// Starts high (allows worse solutions), decreases to near-zero
-		var temperature = useSimulatedAnnealing ? 
-			Math.max(0.001, 5.0 * Math.exp(-totalGenerations / 2000)) : 0
+		// Perform single mutation
+		mutateSomething()
 		
-		// Try multiple mutations and keep the best one
-		for (var attempt = 0; attempt < mutationsPerGeneration; attempt++) {
-			polys.cacheDataNow()
-			var vertCount = polys.getNumVerts()
-			
-			// Adaptive mutation: increase aggressiveness if stuck
-			generationsSinceImprovement++
-			if (generationsSinceImprovement > 1000) {
-				// Temporarily increase adjustment amount for exploration
-				var originalAdjust = 0.5
-				polys.setAdjust(Math.min(1.0, 0.5 + generationsSinceImprovement / 5000))
-				mutateSomething()
-				polys.setAdjust(originalAdjust)
-			} else {
-				mutateSomething()
-			}
-			
-			// Conditional Z-sorting: skip if only color mutations or in fast mode
-			var needsSort = true
-			if (fastMode && skipZSortCounter < 10) {
-				needsSort = false
-				skipZSortCounter++
-			} else {
-				skipZSortCounter = 0
-			}
-			
-			if (needsSort) polys.sortPolygonsByZ()
-			
-			vertBuffer.update(polys.getVertArray())
-			colBuffer.update(polys.getColorArray())
-			polyBuffersOutdated = false
+		// Always sort polygons by Z for correct rendering
+		polys.sortPolygonsByZ()
+		
+		vertBuffer.update(polys.getVertArray())
+		colBuffer.update(polys.getColorArray())
+		polyBuffersOutdated = false
 
-			// FRONT VIEW RENDERING
-			drawData(scratchFB, perspective, null)
-			var scoreFront = compareFBOs(referenceFB, scratchFB)
+		// FRONT VIEW RENDERING
+		drawData(scratchFB, perspective, null)
+		var scoreFront = compareFBOs(referenceFB, scratchFB)
 
-			// SIDE VIEW RENDERING (if second target exists)
-			var scoreSide = 0
-			var scoreCombined = scoreFront
-			if (tgtTextureSide) {
-				var sideMatrix = mat4.create()
-				mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
-				drawData(scratchFBSide, perspective, sideMatrix)
-				scoreSide = compareFBOs(referenceFBSide, scratchFBSide)
-				scoreCombined = (scoreFront * scoreWeightFront) + (scoreSide * scoreWeightSide)
-			}
-
-			var keep = (scoreCombined > bestScore)
-
-			// Simulated annealing: occasionally accept worse solutions
-			if (!keep && temperature > 0.001) {
-				var scoreDelta = scoreCombined - bestScore
-				var acceptanceProbability = Math.exp(scoreDelta / temperature)
-				if (Math.random() < acceptanceProbability) {
-					keep = true
-				}
-			}
-
-			// prefer to remove polys even if score drop is within tolerance
-			if (!keep && polys.getNumVerts() < vertCount) {
-				if (scoreCombined > bestScore - fewerPolysTolerance) keep = true
-			}
-
-			if (keep) {
-				// This mutation is better, save it
-				bestScore = scoreCombined
-				bestMutation = {
-					vertArr: polys.getVertArray().slice(),
-					colArr: polys.getColorArray().slice(),
-					scoreFront: scoreFront,
-					scoreSide: scoreSide,
-					scoreCombined: scoreCombined
-				}
-			}
-			
-			polys.restoreCachedData()
+		// SIDE VIEW RENDERING (if second target exists)
+		var scoreSide = 0
+		var scoreCombined = scoreFront
+		if (tgtTextureSide) {
+			var sideMatrix = mat4.create()
+			mat4.rotateY(sideMatrix, sideMatrix, sideViewRotation)
+			drawData(scratchFBSide, perspective, sideMatrix)
+			scoreSide = compareFBOs(referenceFBSide, scratchFBSide)
+			scoreCombined = (scoreFront * scoreWeightFront) + (scoreSide * scoreWeightSide)
 		}
-		
-		// Apply the best mutation found (if any)
-		if (bestMutation) {
-			polys.setArrays(bestMutation.vertArr, bestMutation.colArr)
-			vertBuffer.update(polys.getVertArray())
-			colBuffer.update(polys.getColorArray())
-			currentScore = bestMutation.scoreFront
-			currentScoreSide = bestMutation.scoreSide
-			currentScoreCombined = bestMutation.scoreCombined
+
+		var keep = (scoreCombined > currentScoreCombined)
+
+		// Prefer to remove polys even if score drop is within tolerance
+		if (!keep && polys.getNumVerts() < vertCount) {
+			if (scoreCombined > currentScoreCombined - fewerPolysTolerance) keep = true
+		}
+
+		if (keep) {
+			// Accept the mutation
+			currentScore = scoreFront
+			currentScoreSide = scoreSide
+			currentScoreCombined = scoreCombined
 			
 			// Reset stagnation counter if meaningful improvement
-			if (bestMutation.scoreCombined > lastImprovementScore + 0.001) {
+			if (scoreCombined > lastImprovementScore + 0.001) {
 				generationsSinceImprovement = 0
-				lastImprovementScore = bestMutation.scoreCombined
+				lastImprovementScore = scoreCombined
+			} else {
+				generationsSinceImprovement++
 			}
 			polyBuffersOutdated = false
 		} else {
-			// No improvement, buffers are already correct from restore
+			// Reject mutation, restore previous state
+			polys.restoreCachedData()
+			generationsSinceImprovement++
 			polyBuffersOutdated = true
 		}
 	}
 
 
 	function mutateSomething() {
-		// mutate one thing
+		// Simple random mutation selection
 		var r = rand()
 		
-		// Adaptive mutation based on score
-		var isHighScore = currentScoreCombined > 95
-		var isStuck = generationsSinceImprovement > 500
-		
-		// High score: use fine-tuning mutations
-		if (isHighScore && !isStuck) {
-			if (r < 0.7) {
-				polys.mutateValueFine()
-			} else if (r < 0.9) {
-				polys.mutateVertex()
-			} else {
-				polys.removePoly()  // Try simplifying
-			}
-		}
-		// Stuck: aggressive exploration
-		else if (isStuck) {
-			if (r < 0.15) {
-				// Mutate entire polygon at once
-				polys.mutatePolygon()
-			} else if (r < 0.3) {
-				// Multiple mutations
-				for (var i = 0; i < (isHighScore ? 2 : 3); i++) {
-					var rr = rand()
-					if (rr < 0.4) polys.mutateValue()
-					else if (rr < 0.7) polys.mutateVertex()
-					else polys.addPoly()
-				}
-			} else if (r < 0.5) {
-				polys.addPoly()
-			} else if (r < 0.7) {
-				polys.removePoly()
-			} else {
-				polys.mutateVertex()
-			}
-		}
-		// Normal evolution
-		else {
-			// Bias toward color mutations when score is low (faster convergence)
-			var colorBias = currentScoreCombined < 50 ? 0.6 : 0.25
-			
-			if (r < colorBias) {
-				polys.mutateValue()
-			} else if (r < 0.5) {
-				polys.mutateVertex()
-			} else if (r < 0.8) {
-				polys.addPoly()
-			} else {
-				polys.removePoly()
-			}
+		if (r < 0.3) {
+			polys.mutateValue()
+		} else if (r < 0.5) {
+			polys.mutateVertex()
+		} else if (r < 0.8) {
+			polys.addPoly()
+		} else {
+			polys.removePoly()
 		}
 	}
 

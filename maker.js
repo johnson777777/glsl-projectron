@@ -45,6 +45,8 @@ function setImage(img) {
     generations = 0
     proj.setTargetImage(img)
     frontImageLoaded = true
+    drawNeeded = true
+    updateHTML()
     checkAndLoadPendingData()
 }
 
@@ -54,6 +56,7 @@ function setImageSide(img) {
     proj.setTargetImageSide(img)
     dualViewEnabled = true
     sideImageLoaded = true
+    drawNeeded = true
     updateHTML()
     checkAndLoadPendingData()
 }
@@ -129,17 +132,17 @@ function render() {
         lastHtmlUpdate = now
     }
     if (now - lastDraw > 500 || (paused && drawNeeded)) {
-        if (showSideView && dualViewEnabled) {
-            // render side view
-            if (showReference) {
+        if (showReference) {
+            // Determine which reference to show based on camera angle
+            if (dualViewEnabled && isSideViewAngle()) {
                 proj.drawSideReference()
             } else {
-                proj.drawSideView(-cameraRot[0], -cameraRot[1])
+                proj.drawTargetImage()
             }
         } else {
-            // render front view
-            if (showReference) {
-                proj.drawTargetImage()
+            // Normal rendering with camera rotation
+            if (showSideView && dualViewEnabled) {
+                proj.drawSideView(-cameraRot[0], -cameraRot[1])
             } else {
                 proj.draw(-cameraRot[0], -cameraRot[1])
             }
@@ -190,14 +193,6 @@ setupInput('maxAlpha', val => { maxAlpha = parseFloat(val); setAlpha() })
 setupInput('adjust', val => { proj.setAdjustAmount(parseFloat(val) || 0.5) })
 setupInput('preferFewer', val => { proj.setFewerPolyTolerance(parseFloat(val) || 0) })
 
-// Performance optimization controls
-setupInput('mutationsPerGen', val => { 
-    proj.setMutationsPerGeneration(parseInt(val) || 1)
-})
-setupInput('fastMode', val => { 
-    proj.setFastMode(val)
-})
-
 // Dual-view weight controls
 var frontWeight = 0.5
 var sideWeight = 0.5
@@ -230,7 +225,6 @@ $('import').addEventListener('click', ev => {
     // Check if images are loaded before importing
     if (frontImageLoaded && (!dualViewEnabled || sideImageLoaded)) {
         var res = proj.importData(dat)
-        if (res) $('data').value = ''
         drawNeeded = true
     } else {
         // Defer import until images load
@@ -320,6 +314,22 @@ document.body.addEventListener('touchend', stopDrag)
 document.body.addEventListener('mousemove', drag)
 document.body.addEventListener('touchmove', drag)
 
+
+// Determine if camera is closer to side view (90° or -90°) or front view (0° or 180°)
+function isSideViewAngle() {
+    var normalized = normalizeAngle(cameraRot[0])
+    var absAngle = Math.abs(normalized)
+    // Check if closer to ±90° (π/2) than to 0° or 180° (π)
+    var distToSide = Math.min(
+        Math.abs(absAngle - Math.PI / 2),
+        Math.abs(absAngle + Math.PI / 2)
+    )
+    var distToFront = Math.min(
+        Math.abs(normalized),
+        Math.abs(absAngle - Math.PI)
+    )
+    return distToSide < distToFront
+}
 
 // Find nearest snap point for an angle
 function findNearestSnap(angle, snapArray) {
