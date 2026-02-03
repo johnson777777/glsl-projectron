@@ -5,8 +5,8 @@
   "author": "Andy Hall",
   "license": "MIT",
   "scripts": {
-    "start": "webpack-dev-server",
-    "build": "webpack --env.production"
+    "start": "set NODE_OPTIONS=--openssl-legacy-provider && webpack-dev-server",
+    "build": "set NODE_OPTIONS=--openssl-legacy-provider && webpack --env.production"
   },
   "dependencies": {
     "game-shell": "github:mikolalysenko/game-shell",

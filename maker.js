@@ -39,7 +39,7 @@ img.src = './img/mona512.jpg'
 // Load default side image
 var imgSideDefault = new Image()
 imgSideDefault.onload = () => { setImageSide(imgSideDefault) }
-imgSideDefault.src = './img/monaside.png'
+imgSideDefault.src = './img/monaside512.png'
 
 function setImage(img) {
     generations = 0
@@ -504,7 +504,7 @@ window.addEventListener('load', function () {
     
     // Preselect default images
     if (frontGallery) updateGallerySelection(frontGallery, 'img/mona512.jpg')
-    if (sideGallery) updateGallerySelection(sideGallery, 'img/monaside.png')
+    if (sideGallery) updateGallerySelection(sideGallery, 'img/monaside512.png')
     
     // File input handler for front image (if exists)
     var frontImageInput = $('frontImageInput')
